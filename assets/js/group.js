@@ -94,9 +94,13 @@
   function decodeMember(token) {
     if (!token) return null;
     var cleaned = String(token).trim();
-    // Tolerate someone pasting the whole share URL.
-    var hashAt = cleaned.indexOf('#m=');
-    if (hashAt !== -1) cleaned = cleaned.slice(hashAt + 3);
+    // Tolerate someone pasting a whole URL of either kind.
+    var selfAt = cleaned.indexOf('#me=');
+    if (selfAt !== -1) cleaned = cleaned.slice(selfAt + 4);
+    else {
+      var hashAt = cleaned.indexOf('#m=');
+      if (hashAt !== -1) cleaned = cleaned.slice(hashAt + 3);
+    }
     cleaned = cleaned.replace(/[?&].*$/, '').replace(/\s+/g, '');
     var b64 = cleaned.replace(/-/g, '+').replace(/_/g, '/');
     while (b64.length % 4) b64 += '=';
@@ -110,9 +114,19 @@
     }
   }
 
+  // Two kinds of link, because they mean opposite things on arrival.
+  // #m=  — "add this person to your circle", what a member sends the organiser.
+  // #me= — "this is your own profile", what the organiser sends back to a member.
   function shareUrl(member) {
-    var base = location.origin + location.pathname;
-    return base + '#m=' + encodeMember(member);
+    return baseUrl() + '#m=' + encodeMember(member);
+  }
+
+  function selfUrl(member) {
+    return baseUrl() + '#me=' + encodeMember(member);
+  }
+
+  function baseUrl() {
+    return location.origin + location.pathname;
   }
 
   /* ---------- overlap ---------- */
@@ -230,6 +244,8 @@
     encodeMember: encodeMember,
     decodeMember: decodeMember,
     shareUrl: shareUrl,
+    selfUrl: selfUrl,
+    baseUrl: baseUrl,
     overlapCounts: overlapCounts,
     projectMember: projectMember,
     rankWindows: rankWindows,

@@ -405,6 +405,18 @@
         card.appendChild(ask);
       }
 
+      if (m.email && m.id !== state.myId) {
+        var mail = document.createElement('button');
+        mail.type = 'button';
+        mail.className = 'member-mail';
+        mail.textContent = 'Email their link';
+        mail.addEventListener('click', function () {
+          openMail(mailtoForMember(m));
+          status(els.mailStatus, 'Opened an email to ' + (m.name || m.email) + '.');
+        });
+        card.appendChild(mail);
+      }
+
       var remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'member-remove';
@@ -719,8 +731,49 @@
     els.shareLink.value = G.shareUrl(m);
   }
 
+  // A self-link restores someone's own answers rather than adding them as
+  // somebody else in their own circle.
+  function claimProfileFromToken(token) {
+    var parsed = G.decodeMember(token);
+    if (!parsed) return null;
+    var existing = null;
+    for (var i = 0; i < state.group.members.length; i++) {
+      var m = state.group.members[i];
+      if (m.email && parsed.email && m.email.toLowerCase() === parsed.email.toLowerCase()) {
+        existing = m;
+        break;
+      }
+    }
+    if (existing) {
+      parsed.id = existing.id;
+      Object.assign(existing, parsed);
+    } else {
+      state.group.members.push(parsed);
+    }
+    state.myId = parsed.id;
+    G.saveMyId(parsed.id);
+    state.myBits = G.memberBits(parsed);
+    persist();
+    fillFormFromMe();
+    renderAll();
+    return parsed;
+  }
+
   function consumeIncomingLink() {
     var hash = location.hash || '';
+
+    if (hash.indexOf('#me=') === 0) {
+      var selfToken = hash.slice(4);
+      history.replaceState(null, '', location.pathname + location.search);
+      var mine = claimProfileFromToken(selfToken);
+      if (mine) {
+        status(els.signupStatus, 'Welcome back, ' + (mine.name || 'you') +
+          '. Your answers are loaded — change what you need and send your link back.');
+        document.getElementById('availability').scrollIntoView({ behavior: 'smooth' });
+      }
+      return;
+    }
+
     if (hash.indexOf('#m=') !== 0) return;
     var token = hash.slice(3);
     history.replaceState(null, '', location.pathname + location.search);
@@ -731,11 +784,83 @@
     }
   }
 
+  /* ───────────────────── mailing links out ───────────────────── */
+
+  function mailtoForMember(member) {
+    var circle = state.group.name || 'our mastermind circle';
+    var from = me();
+    var firstName = (member.name || '').split(' ')[0];
+    var body = [
+      'Hi' + (firstName ? ' ' + firstName : '') + ',',
+      '',
+      'This link opens your place in ' + circle + ' — your details and the hours you marked free:',
+      '',
+      G.selfUrl(member),
+      '',
+      'Change whatever is out of date, then copy your share link underneath the grid and send it',
+      'back to me so I can update the circle.'
+    ];
+    if (from && from.name && from.id !== member.id) body.push('', '— ' + from.name);
+    return 'mailto:' + encodeURIComponent(member.email) +
+      '?subject=' + encodeURIComponent('Your link for ' + circle) +
+      '&body=' + encodeURIComponent(body.join('\n'));
+  }
+
+  function openMail(url) {
+    var a = document.createElement('a');
+    a.href = url;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  // Mail apps only open one compose window per click, so walk the circle one
+  // person at a time instead of firing a burst the browser would swallow.
+  var mailQueue = [];
+
+  function mailableMembers() {
+    return state.group.members.filter(function (m) {
+      return m.email && m.id !== state.myId;
+    });
+  }
+
+  function updateMailButton() {
+    var pending = mailQueue.length;
+    var total = mailableMembers().length;
+    if (!total) {
+      els.mailNext.disabled = true;
+      els.mailNext.textContent = 'Email everyone their link';
+      return;
+    }
+    els.mailNext.disabled = false;
+    els.mailNext.textContent = pending
+      ? 'Next: ' + (mailQueue[0].name || mailQueue[0].email)
+      : 'Email everyone their link';
+  }
+
+  function sendNextLink() {
+    if (!mailQueue.length) {
+      mailQueue = mailableMembers();
+      if (!mailQueue.length) {
+        status(els.mailStatus, 'Nobody in the circle has an email address yet.', true);
+        return;
+      }
+    }
+    var member = mailQueue.shift();
+    openMail(mailtoForMember(member));
+    var left = mailQueue.length;
+    status(els.mailStatus, left
+      ? 'Opened an email to ' + (member.name || member.email) + '. ' + left + ' to go.'
+      : 'Opened the last one — that\'s everybody.');
+    updateMailButton();
+  }
+
   /* ───────────────────────── render ───────────────────────── */
 
   function renderGroupViews() {
     renderShareLink();
     renderMembers();
+    updateMailButton();
     renderOverlapGrid();
     renderWindows();
     renderInvite();
@@ -837,6 +962,8 @@
       });
     });
 
+    els.mailNext.addEventListener('click', sendNextLink);
+
     els.downloadIcs.addEventListener('click', downloadICS);
     els.copySummary.addEventListener('click', function () {
       var plan = currentPlan();
@@ -869,6 +996,7 @@
       shareLink: $('share-link'), copyLink: $('copy-link'), shareStatus: $('share-status'),
       gName: $('g-name'), memberToken: $('member-token'), addMember: $('add-member'),
       addStatus: $('add-status'), members: $('members'),
+      mailNext: $('mail-next'), mailStatus: $('mail-status'),
       overlapGrid: $('overlap-grid'), overlapTzLabel: $('overlap-tz-label'), legend: $('legend'),
       windows: $('windows'), windowsNote: $('windows-note'),
       gDuration: $('g-duration'), gStart: $('g-start'), gLocation: $('g-location'),

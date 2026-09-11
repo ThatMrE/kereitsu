@@ -332,6 +332,16 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .member-remove:hover { color: var(--danger); }
 .empty-note { color: var(--muted); font-size: 0.9rem; padding: 16px 0; }
 
+.member-mail {
+  margin-top: 12px; background: none; font-family: inherit;
+  border: 1px solid var(--line); color: var(--muted);
+  border-radius: 999px; padding: 5px 12px; font-size: 0.78rem; cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+.member-mail:hover { color: var(--accent); border-color: var(--accent); }
+
+.send-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 18px; }
+
 /* ---------- windows ---------- */
 
 .windows { display: grid; gap: 12px; margin-top: 16px; }

@@ -292,6 +292,18 @@
     </div>
 
     <div class="panel">
+      <h3>Send everyone their link</h3>
+      <p class="muted">
+        Each person gets a link back to their own answers, so they can change the hours they
+        marked without starting over. Your mail app opens one email at a time.
+      </p>
+      <div class="send-row">
+        <button type="button" class="btn btn-primary" id="mail-next" disabled>Email everyone their link</button>
+        <p class="form-status" id="mail-status" role="status"></p>
+      </div>
+    </div>
+
+    <div class="panel">
       <h3>Where the week overlaps</h3>
       <p class="muted">
         Everyone's week on one timeline, in <strong id="overlap-tz-label">your timezone</strong>.
@@ -412,7 +424,8 @@
         <summary>Someone's availability changed. Now what?</summary>
         <p>
           They repaint their week and send a fresh link. Paste it in and it replaces what you
-          had for them. Links are matched on email, so use the same one.
+          had for them — links are matched on email, so use the same one. If they've lost their
+          answers, <em>Email everyone their link</em> sends each person back their own.
         </p>
       </details>
       <details>
