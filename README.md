@@ -32,11 +32,21 @@ Everything lives in the browser. There is no backend, no account and no
 database.
 
 A member fills in their profile and availability, and the page compresses it
-into a share link (`#m=…`) that carries only their name, email, timezone and
-availability bitset. They send that link to whoever is organising; the
-organiser opens it, or pastes it into the *Add a member* field, and that person
-joins their local copy of the circle. Group state is kept in `localStorage`
-under `kereitsu.*` keys, and the footer has a reset that clears it.
+into a link carrying only their name, email, timezone and availability bitset.
+Group state is kept in `localStorage` under `kereitsu.*` keys, and the footer
+has a reset that clears it.
+
+There are two kinds of link, because they mean opposite things on arrival:
+
+| Link | Sent by | On opening |
+| --- | --- | --- |
+| `#m=…` | a member, to the organiser | adds that person to your circle |
+| `#me=…` | the organiser, back to a member | loads it as *your own* profile |
+
+The organiser pastes a `#m=` link into *Add a member*, or just opens it. The
+`#me=` direction is what *Email everyone their link* sends: it puts someone
+back in front of their own answers on any device, so they can adjust the hours
+they marked and send a fresh `#m=` link back.
 
 The trade-off is deliberate: no data leaves the device, and the cost is that
 the organiser holds the canonical copy of the circle.
