@@ -142,9 +142,33 @@
     };
   }
 
+  function newUid() {
+    return 'kereitsu-' + Date.now().toString(36) +
+      Math.random().toString(36).slice(2, 10) + '@kereitsu';
+  }
+
+  // The fields that make this a different event rather than the same one
+  // re-saved. A change here is what earns a SEQUENCE bump.
+  function eventSignature(group, plan) {
+    var emails = group.members.map(function (m) { return m.email; })
+      .filter(Boolean).map(function (e) { return e.toLowerCase(); }).sort().join(',');
+    return [plan.start, plan.end, plan.rrule, group.name, group.location, emails].join('|');
+  }
+
+  // Calendars match events on UID: reuse it and raise SEQUENCE and the same
+  // event is updated in place instead of a second one appearing beside it.
+  function nextIssue(group, plan) {
+    var signature = eventSignature(group, plan);
+    if (!group.uid) return { uid: newUid(), sequence: 0, signature: signature };
+    if (group.icsSignature === signature) {
+      return { uid: group.uid, sequence: group.sequence || 0, signature: signature };
+    }
+    return { uid: group.uid, sequence: (group.sequence || 0) + 1, signature: signature };
+  }
+
   function buildICS(group, plan, organizer) {
-    var uid = 'kereitsu-' + stampUTC(plan.start).replace(/[TZ]/g, '') + '-' +
-      Math.random().toString(36).slice(2, 8) + '@kereitsu';
+    var uid = group.uid || newUid();
+    var stamp = stampUTC(Date.now());
     var lines = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
@@ -153,7 +177,8 @@
       'METHOD:REQUEST',
       'BEGIN:VEVENT',
       'UID:' + uid,
-      'DTSTAMP:' + stampUTC(Date.now()),
+      'DTSTAMP:' + stamp,
+      'LAST-MODIFIED:' + stamp,
       'DTSTART:' + stampUTC(plan.start),
       'DTEND:' + stampUTC(plan.end),
       'RRULE:' + plan.rrule,
@@ -161,7 +186,7 @@
       'DESCRIPTION:' + escapeText(buildDescription(group, plan)),
       'STATUS:CONFIRMED',
       'TRANSP:OPAQUE',
-      'SEQUENCE:0'
+      'SEQUENCE:' + (group.sequence || 0)
     ];
     if (group.location) lines.push('LOCATION:' + escapeText(group.location));
     if (organizer && organizer.email) {
@@ -201,6 +226,9 @@
 
   global.KZInvite = {
     stampUTC: stampUTC,
+    newUid: newUid,
+    eventSignature: eventSignature,
+    nextIssue: nextIssue,
     firstOccurrence: firstOccurrence,
     parseStartDate: parseStartDate,
     weekdayOrdinal: weekdayOrdinal,

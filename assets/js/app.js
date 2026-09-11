@@ -682,6 +682,16 @@
   function downloadICS() {
     var plan = currentPlan();
     if (!plan) return;
+
+    // Keep the UID and advance the sequence before building, so a second
+    // download updates the event already in people's calendars.
+    var issue = I.nextIssue(state.group, plan);
+    var isUpdate = issue.sequence > 0 && issue.sequence !== state.group.sequence;
+    state.group.uid = issue.uid;
+    state.group.sequence = issue.sequence;
+    state.group.icsSignature = issue.signature;
+    persist();
+
     var ics = I.buildICS(state.group, plan, me());
     var blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     var url = URL.createObjectURL(blob);
@@ -692,7 +702,9 @@
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    status(els.inviteStatus, 'Downloaded ' + I.filename(state.group) + '. Open it to add every session.');
+    status(els.inviteStatus, isUpdate
+      ? 'Downloaded an update. Opening it moves the existing event rather than adding a second one.'
+      : 'Downloaded ' + I.filename(state.group) + '. Open it to add every session.');
   }
 
   /* ───────────────────────── share ───────────────────────── */

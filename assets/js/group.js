@@ -36,6 +36,9 @@
       startDate: '',          // YYYY-MM-DD; blank = next occurrence
       chosenUtcSlot: null,    // index into the UTC week
       location: '',
+      uid: '',                // stable calendar UID, set on first download
+      sequence: 0,            // raised when a download changes the event
+      icsSignature: '',       // what the last download described
       members: []
     };
   }
