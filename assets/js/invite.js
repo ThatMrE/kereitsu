@@ -119,12 +119,12 @@
     var asks = group.members.filter(function (m) { return m.ask; });
     if (asks.length) {
       lines.push('');
-      lines.push('On the table:');
+      lines.push('Bringing:');
       asks.forEach(function (m) { lines.push('- ' + (m.name || 'Someone') + ': ' + m.ask); });
     }
     lines.push('');
-    lines.push('Suggested run of show: 5 min check-in, then one hot seat per member — ' +
-      'the rest listen, then ask questions before giving advice. Close with commitments for next time.');
+    lines.push('How it runs: quick check-in, then one hot seat. Ask questions before giving ' +
+      'advice. Finish with what everyone is doing next.');
     return lines.join('\n');
   }
 
