@@ -287,8 +287,20 @@
           </div>
           <span class="hint" id="add-status"></span>
         </label>
+        <div class="field field-wide">
+          <span class="label">Or note down someone you're waiting on</span>
+          <div class="share-row">
+            <input type="text" id="invitee-name" placeholder="Name" aria-label="Name">
+            <input type="email" id="invitee-email" placeholder="Email" aria-label="Email">
+            <button type="button" class="btn btn-ghost" id="add-invitee">Add</button>
+          </div>
+          <span class="hint" id="invitee-status"></span>
+        </div>
       </div>
+
+      <p class="response-summary" id="response-summary" role="status"></p>
       <div class="members" id="members"></div>
+      <button type="button" class="btn btn-ghost chase-btn" id="chase-waiting" hidden></button>
     </div>
 
     <div class="panel">

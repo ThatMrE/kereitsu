@@ -36,6 +36,32 @@
 
   function persist() { G.saveGroup(state.group); }
 
+  // Someone counts as having answered once they've marked at least one hour.
+  // Everyone else is still owed a reply, including people the organiser added
+  // by hand while waiting for their link.
+  function hasResponded(member) {
+    return T.bitCount(G.memberBits(member)) > 0;
+  }
+
+  function waitingOn() {
+    return state.group.members.filter(function (m) { return !hasResponded(m); });
+  }
+
+  function nameOf(member) {
+    return member.name || member.email || 'someone';
+  }
+
+  function nameOrYou(member) {
+    return member.id === state.myId ? 'you' : nameOf(member);
+  }
+
+  // "Ana", "Ana and Bo", "Ana, Bo and Cy"
+  function listNames(members, personal) {
+    var names = members.map(personal ? nameOrYou : nameOf);
+    if (names.length <= 1) return names.join('');
+    return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+  }
+
   function loadPrefs() {
     try {
       var raw = localStorage.getItem(PREFS_KEY);
@@ -337,7 +363,10 @@
     for (var i = 0; i < state.group.members.length; i++) {
       var m = state.group.members[i];
       var sameEmail = m.email && parsed.email && m.email.toLowerCase() === parsed.email.toLowerCase();
-      var sameName = !m.email && !parsed.email && m.name.toLowerCase() === parsed.name.toLowerCase();
+      // Someone noted down by name alone has no email to match on, so fall back
+      // to the name — otherwise their reply arrives as a second person.
+      var sameName = !m.email && m.name && parsed.name &&
+        m.name.toLowerCase() === parsed.name.toLowerCase();
       if (sameEmail || sameName) { existing = m; break; }
     }
     if (existing) {
@@ -353,6 +382,35 @@
     return parsed;
   }
 
+  function addInvitee() {
+    var name = els.inviteeName.value.trim();
+    var email = els.inviteeEmail.value.trim();
+    if (!name && !email) {
+      status(els.inviteeStatus, 'A name or an email, so you know who you mean.', true);
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      status(els.inviteeStatus, "That email doesn't look right.", true);
+      return;
+    }
+    for (var i = 0; i < state.group.members.length; i++) {
+      var m = state.group.members[i];
+      var sameEmail = m.email && email && m.email.toLowerCase() === email.toLowerCase();
+      var sameName = !email && name && m.name.toLowerCase() === name.toLowerCase();
+      if (sameEmail || sameName) {
+        status(els.inviteeStatus, nameOf(m) + ' is already in the circle.', true);
+        return;
+      }
+    }
+    var member = G.makeMember({ name: name, email: email, tz: viewerTz() });
+    state.group.members.push(member);
+    persist();
+    els.inviteeName.value = '';
+    els.inviteeEmail.value = '';
+    renderGroupViews();
+    status(els.inviteeStatus, 'Added ' + nameOf(member) + '. Waiting on their week.');
+  }
+
   function removeMember(id) {
     state.group.members = state.group.members.filter(function (m) { return m.id !== id; });
     if (state.myId === id) {
@@ -361,6 +419,36 @@
     }
     persist();
     renderAll();
+  }
+
+  function renderResponseSummary() {
+    var total = state.group.members.length;
+    var waiting = waitingOn();
+    var answered = total - waiting.length;
+
+    if (!total) {
+      els.responseSummary.textContent = '';
+      els.chaseWaiting.hidden = true;
+      return;
+    }
+    if (!waiting.length) {
+      els.responseSummary.innerHTML = total === 1
+        ? '<strong>You\'re in.</strong> Add the others as their links arrive.'
+        : '<strong>Everyone\'s in.</strong> All ' + total + ' have marked their week.';
+      els.responseSummary.classList.remove('is-waiting');
+      els.chaseWaiting.hidden = true;
+      return;
+    }
+
+    els.responseSummary.innerHTML = '<strong>' + answered + ' of ' + total +
+      '</strong> have sent their week. Still waiting on ' + listNames(waiting, true) + '.';
+    els.responseSummary.classList.add('is-waiting');
+
+    var chaseable = waiting.filter(function (m) { return m.email && m.id !== state.myId; });
+    els.chaseWaiting.hidden = !chaseable.length;
+    els.chaseWaiting.textContent = chaseable.length === 1
+      ? 'Chase ' + nameOf(chaseable[0])
+      : 'Chase the ' + chaseable.length + ' still to answer';
   }
 
   function renderMembers() {
@@ -374,8 +462,10 @@
       return;
     }
     state.group.members.forEach(function (m) {
+      var waiting = !hasResponded(m);
       var card = document.createElement('div');
-      card.className = 'member' + (m.id === state.myId ? ' is-me' : '');
+      card.className = 'member' + (m.id === state.myId ? ' is-me' : '') +
+        (waiting ? ' is-waiting' : '');
 
       var name = document.createElement('div');
       name.className = 'member-name';
@@ -386,6 +476,12 @@
         badge.textContent = 'you';
         name.appendChild(badge);
       }
+      if (waiting) {
+        var pending = document.createElement('span');
+        pending.className = 'badge badge-waiting';
+        pending.textContent = m.id === state.myId ? 'your turn' : 'waiting';
+        name.appendChild(pending);
+      }
       card.appendChild(name);
 
       var meta = document.createElement('div');
@@ -394,7 +490,7 @@
       var bits = [];
       if (m.focus) bits.push(m.focus);
       bits.push(m.tz.replace(/_/g, ' ') + ' (' + T.offsetLabel(m.tz) + ')');
-      bits.push(hours ? hours.toFixed(hours % 1 ? 1 : 0) + 'h free' : 'no availability yet');
+      bits.push(hours ? hours.toFixed(hours % 1 ? 1 : 0) + 'h free' : 'hasn\'t answered yet');
       meta.textContent = bits.join(' · ');
       card.appendChild(meta);
 
@@ -535,6 +631,11 @@
       ? 'Only one week painted so far, so these are just your own free hours.'
       : 'Ranked by how many of the ' + withAvailability.length +
         ' can make the whole session, then by how kind the hour is to everyone.';
+    var pendingVoices = waitingOn().filter(function (m) { return T.bitCount(G.memberBits(m)) === 0; });
+    if (pendingVoices.length) {
+      who += ' ' + listNames(pendingVoices) +
+        (pendingVoices.length === 1 ? " hasn't answered yet, so isn't counted." : " haven't answered yet, so aren't counted.");
+    }
     els.windowsNote.textContent = who;
 
     var tz = viewerTz();
@@ -790,16 +891,29 @@
     var circle = state.group.name || 'our mastermind circle';
     var from = me();
     var firstName = (member.name || '').split(' ')[0];
-    var body = [
-      'Hi' + (firstName ? ' ' + firstName : '') + ',',
-      '',
-      'This link opens your place in ' + circle + ' — your details and the hours you marked free:',
-      '',
-      G.selfUrl(member),
-      '',
-      'Change whatever is out of date, then copy your share link underneath the grid and send it',
-      'back to me so I can update the circle.'
-    ];
+    var greeting = 'Hi' + (firstName ? ' ' + firstName : '') + ',';
+    var body = hasResponded(member)
+      ? [
+        greeting,
+        '',
+        'This link opens your place in ' + circle + ' — your details and the hours you marked free:',
+        '',
+        G.selfUrl(member),
+        '',
+        'Change whatever is out of date, then copy your share link underneath the grid and send it',
+        'back to me so I can update the circle.'
+      ]
+      : [
+        greeting,
+        '',
+        "We're working out when " + circle + ' can meet, and yours is the week still missing.',
+        'This link already has your details — drag across the hours you could make, then copy',
+        'your share link and send it back:',
+        '',
+        G.selfUrl(member),
+        '',
+        'Takes a minute, and nothing gets booked until you have.'
+      ];
     if (from && from.name && from.id !== member.id) body.push('', '— ' + from.name);
     return 'mailto:' + encodeURIComponent(member.email) +
       '?subject=' + encodeURIComponent('Your link for ' + circle) +
@@ -818,15 +932,17 @@
   // person at a time instead of firing a burst the browser would swallow.
   var mailQueue = [];
 
-  function mailableMembers() {
+  function mailableMembers(onlyWaiting) {
     return state.group.members.filter(function (m) {
-      return m.email && m.id !== state.myId;
+      if (!m.email || m.id === state.myId) return false;
+      return onlyWaiting ? !hasResponded(m) : true;
     });
   }
 
   function updateMailButton() {
     var pending = mailQueue.length;
-    var total = mailableMembers().length;
+    var total = mailableMembers(false).length;
+    els.chaseWaiting.disabled = pending > 0;
     if (!total) {
       els.mailNext.disabled = true;
       els.mailNext.textContent = 'Email everyone their link';
@@ -834,15 +950,17 @@
     }
     els.mailNext.disabled = false;
     els.mailNext.textContent = pending
-      ? 'Next: ' + (mailQueue[0].name || mailQueue[0].email)
+      ? 'Next: ' + nameOf(mailQueue[0])
       : 'Email everyone their link';
   }
 
-  function sendNextLink() {
+  function sendNextLink(onlyWaiting) {
     if (!mailQueue.length) {
-      mailQueue = mailableMembers();
+      mailQueue = mailableMembers(onlyWaiting === true);
       if (!mailQueue.length) {
-        status(els.mailStatus, 'Nobody in the circle has an email address yet.', true);
+        status(els.mailStatus, onlyWaiting === true
+          ? 'Everyone still waiting is missing an email address.'
+          : 'Nobody in the circle has an email address yet.', true);
         return;
       }
     }
@@ -850,7 +968,7 @@
     openMail(mailtoForMember(member));
     var left = mailQueue.length;
     status(els.mailStatus, left
-      ? 'Opened an email to ' + (member.name || member.email) + '. ' + left + ' to go.'
+      ? 'Opened an email to ' + nameOf(member) + '. ' + left + ' to go.'
       : 'Opened the last one — that\'s everybody.');
     updateMailButton();
   }
@@ -860,6 +978,7 @@
   function renderGroupViews() {
     renderShareLink();
     renderMembers();
+    renderResponseSummary();
     updateMailButton();
     renderOverlapGrid();
     renderWindows();
@@ -962,7 +1081,14 @@
       });
     });
 
-    els.mailNext.addEventListener('click', sendNextLink);
+    els.mailNext.addEventListener('click', function () { sendNextLink(false); });
+    els.chaseWaiting.addEventListener('click', function () { sendNextLink(true); });
+    els.addInvitee.addEventListener('click', addInvitee);
+    [els.inviteeName, els.inviteeEmail].forEach(function (input) {
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); addInvitee(); }
+      });
+    });
 
     els.downloadIcs.addEventListener('click', downloadICS);
     els.copySummary.addEventListener('click', function () {
@@ -997,6 +1123,9 @@
       gName: $('g-name'), memberToken: $('member-token'), addMember: $('add-member'),
       addStatus: $('add-status'), members: $('members'),
       mailNext: $('mail-next'), mailStatus: $('mail-status'),
+      inviteeName: $('invitee-name'), inviteeEmail: $('invitee-email'),
+      addInvitee: $('add-invitee'), inviteeStatus: $('invitee-status'),
+      responseSummary: $('response-summary'), chaseWaiting: $('chase-waiting'),
       overlapGrid: $('overlap-grid'), overlapTzLabel: $('overlap-tz-label'), legend: $('legend'),
       windows: $('windows'), windowsNote: $('windows-note'),
       gDuration: $('g-duration'), gStart: $('g-start'), gLocation: $('g-location'),
