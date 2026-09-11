@@ -1,75 +1,381 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kereitsu</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: linear-gradient(135deg, #050510 0%, #0f0f20 100%);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      color: #fff;
-      overflow: hidden;
-    }
-    .container {
-      text-align: center;
-      padding: 2rem;
-      max-width: 600px;
-    }
-    .emoji {
-      font-size: 5rem;
-      display: block;
-      margin-bottom: 1.5rem;
-      animation: float 3s ease-in-out infinite;
-    }
-    @keyframes float {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-12px); }
-    }
-    h1 {
-      font-size: 2.5rem;
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      color: #38bdf8;
-      margin-bottom: 0.75rem;
-    }
-    .tagline {
-      font-size: 1.2rem;
-      opacity: 0.7;
-      margin-bottom: 1.5rem;
-      font-style: italic;
-    }
-    .body {
-      font-size: 1rem;
-      opacity: 0.55;
-      line-height: 1.6;
-    }
-    .dot {
-      width: 8px; height: 8px;
-      background: #38bdf8;
-      border-radius: 50%;
-      display: inline-block;
-      margin: 2rem auto 0;
-      animation: pulse 2s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.3; transform: scale(0.6); }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kereitsu — start a mastermind circle</title>
+<meta name="description" content="Kereitsu helps a handful of people start a mastermind circle: find the hours you all share, pick a weekly or monthly rhythm, and send the calendar invite.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕸️</text></svg>">
+<link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body>
-  <div class="container">
-    <span class="emoji">🕸️</span>
-    <h1>Kereitsu</h1>
-    <p class="tagline">Networks of people who build things.</p>
-    <p class="body">The strongest structures are woven, not built alone.</p>
-    <div class="dot"></div>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="#top"><span class="brand-mark">🕸️</span> Kereitsu</a>
+    <nav class="topnav">
+      <a href="#what">What is a keiretsu</a>
+      <a href="#how">How it works</a>
+      <a href="#join">Join</a>
+      <a href="#availability">Availability</a>
+      <a href="#schedule">Schedule</a>
+      <a href="#invite">Invite</a>
+    </nav>
   </div>
+</header>
+
+<main id="main">
+
+<!-- ───────────────────────── hero ───────────────────────── -->
+<section class="hero" id="top">
+  <div class="wrap">
+    <p class="eyebrow">Mastermind circles, woven properly</p>
+    <h1>The strongest structures are<br><em>woven</em>, not built alone.</h1>
+    <p class="lede">
+      Sign up, paint the hours you're actually free, and Kereitsu finds the window your whole
+      circle shares — across every timezone in it. Pick a weekly or monthly rhythm and walk away
+      with a calendar invite that recurs on its own.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="#join">Start a circle</a>
+      <a class="btn btn-ghost" href="#what">What's a keiretsu?</a>
+    </div>
+    <ul class="hero-facts">
+      <li><strong>No accounts.</strong> Everything lives in your browser.</li>
+      <li><strong>No server.</strong> Members join by sharing a link.</li>
+      <li><strong>Real .ics.</strong> Recurring, with attendees attached.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ───────────────────── what is a keiretsu ───────────────────── -->
+<section class="section" id="what">
+  <div class="wrap">
+    <p class="section-tag">01 — The idea</p>
+    <h2>What is a keiretsu?</h2>
+    <div class="two-col">
+      <div class="prose">
+        <p>
+          A <strong>keiretsu</strong> (系列, roughly "series" or "lineage") is a Japanese form of
+          business network that took shape after the Second World War, when the pre-war
+          <em>zaibatsu</em> conglomerates were broken up. Rather than one family owning everything,
+          independent firms bound themselves together through cross-shareholdings, a shared main
+          bank, interlocking directorships, and the habit of meeting — often a standing
+          presidents' council that gathered on the same day every month, for decades.
+        </p>
+        <p>
+          Two shapes are usually distinguished. A <strong>horizontal</strong> keiretsu spans
+          industries around a bank — Mitsubishi, Mitsui, Sumitomo. A <strong>vertical</strong> one
+          runs down a supply chain, the way Toyota's suppliers are woven into Toyota. Both trade
+          the speed of a pure market for something a market can't price: members who answer the
+          phone, share what they know, and are still there in a bad year.
+        </p>
+        <p>
+          The structure has real critics — it can shelter weak firms and shut outsiders out, and
+          Japan loosened many of these ties from the 1990s on. But the underlying instinct
+          travels well, and it's the one this site is built on: <strong>a small group of
+          committed peers, meeting on an unmovable rhythm, with obligations that run in every
+          direction.</strong>
+        </p>
+      </div>
+      <aside class="callout">
+        <h3>What we borrow from it</h3>
+        <dl class="principles">
+          <dt>Reciprocity, not transaction</dt>
+          <dd>You show up for people who show up for you. Nobody is keeping a ledger, but everybody is keeping count.</dd>
+          <dt>A standing rhythm</dt>
+          <dd>The meeting happens whether or not anyone feels like it. Cadence is the whole technology.</dd>
+          <dt>Small and closed</dt>
+          <dd>Four to eight people. Trust scales badly; a circle you can't hold in your head isn't a circle.</dd>
+          <dt>Long horizons</dt>
+          <dd>Judge it in years, not sessions. The compounding is the point.</dd>
+        </dl>
+      </aside>
+    </div>
+
+    <div class="card-row">
+      <article class="card">
+        <h3>A mastermind, specifically</h3>
+        <p>
+          Peers at a comparable altitude who meet on a fixed schedule to work on each other's real
+          problems. Each session gives one or two people the "hot seat": they bring something
+          stuck, the rest ask questions before offering advice, and everyone leaves with a
+          commitment to report back on.
+        </p>
+      </article>
+      <article class="card">
+        <h3>Why scheduling kills them</h3>
+        <p>
+          Most circles die in the first month, and almost never over the idea — they die in the
+          reply-all thread about Tuesdays. Settle the hour once, make it recur, and the group
+          survives long enough to become worth something.
+        </p>
+      </article>
+      <article class="card">
+        <h3>What good looks like</h3>
+        <p>
+          Five people. Ninety minutes, same slot every fortnight. A rotating hot seat, notes
+          somewhere shared, and a standing rule that you tell the group the thing you'd rather
+          not say out loud.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── how ───────────────────────── -->
+<section class="section section-alt" id="how">
+  <div class="wrap">
+    <p class="section-tag">02 — How it works</p>
+    <h2>Four steps, one afternoon</h2>
+    <ol class="steps">
+      <li>
+        <span class="step-num">1</span>
+        <h3>Sign up</h3>
+        <p>Add your name, timezone and what you're working on. This becomes your card in the circle.</p>
+      </li>
+      <li>
+        <span class="step-num">2</span>
+        <h3>Paint your week</h3>
+        <p>Drag across the hours you could genuinely hold. Half-hour resolution, your own local time.</p>
+      </li>
+      <li>
+        <span class="step-num">3</span>
+        <h3>Share your link</h3>
+        <p>Your answers compress into a link. Send it to the organiser; they paste it in and the circle fills up.</p>
+      </li>
+      <li>
+        <span class="step-num">4</span>
+        <h3>Lock the rhythm</h3>
+        <p>Pick the overlap, choose weekly, fortnightly or monthly, and download an invite that recurs forever.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ───────────────────────── join ───────────────────────── -->
+<section class="section" id="join">
+  <div class="wrap">
+    <p class="section-tag">03 — Sign up</p>
+    <h2>Join the circle</h2>
+    <p class="section-lede">
+      Nothing leaves your browser. Your details are saved locally and only travel when you choose
+      to share your link.
+    </p>
+
+    <form class="panel form" id="signup-form" novalidate>
+      <div class="field-grid">
+        <label class="field">
+          <span class="label">Your name <em>required</em></span>
+          <input type="text" id="f-name" name="name" autocomplete="name" placeholder="Ada Lovelace" required>
+        </label>
+        <label class="field">
+          <span class="label">Email <em>for the calendar invite</em></span>
+          <input type="email" id="f-email" name="email" autocomplete="email" placeholder="ada@example.com">
+        </label>
+        <label class="field">
+          <span class="label">Timezone</span>
+          <select id="f-tz" name="tz"></select>
+          <span class="hint" id="tz-hint"></span>
+        </label>
+        <label class="field">
+          <span class="label">What you're building</span>
+          <input type="text" id="f-focus" name="focus" placeholder="Seed-stage climate hardware">
+        </label>
+        <label class="field field-wide">
+          <span class="label">What you want the circle's help with</span>
+          <textarea id="f-ask" name="ask" rows="3" placeholder="Hiring my first salesperson without becoming a sales manager."></textarea>
+        </label>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save my profile</button>
+        <p class="form-status" id="signup-status" role="status"></p>
+      </div>
+    </form>
+  </div>
+</section>
+
+<!-- ───────────────────── availability ───────────────────── -->
+<section class="section section-alt" id="availability">
+  <div class="wrap">
+    <p class="section-tag">04 — Overlap tool</p>
+    <h2>Paint the hours you're free</h2>
+    <p class="section-lede">
+      Drag to select, drag again over a selection to clear it. Shown in
+      <strong id="grid-tz-label">your local time</strong>.
+    </p>
+
+    <div class="panel">
+      <div class="toolbar">
+        <div class="toolbar-group" role="group" aria-label="Quick fills">
+          <button type="button" class="chip" data-fill="weekday-morning">Weekday mornings</button>
+          <button type="button" class="chip" data-fill="weekday-lunch">Weekday middays</button>
+          <button type="button" class="chip" data-fill="weekday-evening">Weekday evenings</button>
+          <button type="button" class="chip" data-fill="weekend">Weekends</button>
+          <button type="button" class="chip chip-danger" data-fill="clear">Clear all</button>
+        </div>
+        <div class="toolbar-group">
+          <label class="switch"><input type="checkbox" id="show-all-hours"> <span>Show all 24 hours</span></label>
+          <label class="switch"><input type="checkbox" id="use-12h"> <span>12-hour clock</span></label>
+        </div>
+      </div>
+
+      <div class="grid-scroll">
+        <div class="grid" id="my-grid" aria-label="Your weekly availability"></div>
+      </div>
+
+      <p class="grid-summary" id="my-summary" role="status"></p>
+    </div>
+
+    <div class="panel share-panel">
+      <h3>Your share link</h3>
+      <p class="muted">
+        This link carries your name, email, timezone and availability — nothing else, and nothing
+        to a server. Send it to whoever is organising.
+      </p>
+      <div class="share-row">
+        <input type="text" id="share-link" readonly aria-label="Your share link" placeholder="Save your profile to generate a link">
+        <button type="button" class="btn btn-primary" id="copy-link">Copy</button>
+      </div>
+      <p class="form-status" id="share-status" role="status"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── schedule ───────────────────────── -->
+<section class="section" id="schedule">
+  <div class="wrap">
+    <p class="section-tag">05 — The circle</p>
+    <h2>Find the overlap</h2>
+
+    <div class="panel">
+      <div class="field-grid">
+        <label class="field">
+          <span class="label">Circle name</span>
+          <input type="text" id="g-name" placeholder="Thursday Founders Circle">
+        </label>
+        <label class="field field-wide">
+          <span class="label">Add a member from their link</span>
+          <div class="share-row">
+            <input type="text" id="member-token" placeholder="Paste a share link here">
+            <button type="button" class="btn btn-primary" id="add-member">Add</button>
+          </div>
+          <span class="hint" id="add-status"></span>
+        </label>
+      </div>
+      <div class="members" id="members"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Where the week overlaps</h3>
+      <p class="muted">
+        Every member's availability projected onto one timeline and shown in
+        <strong id="overlap-tz-label">your timezone</strong>. Darker means more of the circle is free.
+        Click a block to make it the meeting time.
+      </p>
+      <div class="grid-scroll">
+        <div class="grid grid-read" id="overlap-grid" aria-label="Group availability overlap"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Best windows</h3>
+      <p class="muted" id="windows-note"></p>
+      <div class="windows" id="windows"></div>
+    </div>
+
+    <div class="panel" id="cadence">
+      <h3>Rhythm</h3>
+      <div class="cadence-options" role="radiogroup" aria-label="Meeting cadence">
+        <label class="cadence">
+          <input type="radio" name="cadence" value="weekly" checked>
+          <span class="cadence-body">
+            <strong>Weekly</strong>
+            <span>Highest momentum. Best for a circle in a sprint, or one that's just formed.</span>
+          </span>
+        </label>
+        <label class="cadence">
+          <input type="radio" name="cadence" value="biweekly">
+          <span class="cadence-body">
+            <strong>Fortnightly</strong>
+            <span>The usual sweet spot — enough time to act on what you committed to.</span>
+          </span>
+        </label>
+        <label class="cadence">
+          <input type="radio" name="cadence" value="monthly">
+          <span class="cadence-body">
+            <strong>Monthly</strong>
+            <span>Same weekday each month. Sustainable for years; go longer per session.</span>
+          </span>
+        </label>
+      </div>
+      <div class="field-grid">
+        <label class="field">
+          <span class="label">Session length</span>
+          <select id="g-duration">
+            <option value="30">30 minutes</option>
+            <option value="45">45 minutes</option>
+            <option value="60" selected>60 minutes</option>
+            <option value="90">90 minutes</option>
+            <option value="120">2 hours</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="label">First session on or after</span>
+          <input type="date" id="g-start">
+        </label>
+        <label class="field field-wide">
+          <span class="label">Where <em>a video link or an address</em></span>
+          <input type="text" id="g-location" placeholder="https://meet.example.com/circle">
+        </label>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── invite ───────────────────────── -->
+<section class="section section-alt" id="invite">
+  <div class="wrap">
+    <p class="section-tag">06 — Calendar invite</p>
+    <h2>Send the invite</h2>
+    <div class="invite-layout">
+      <div class="panel invite-preview" id="invite-preview"></div>
+      <div class="panel">
+        <h3>Take it with you</h3>
+        <div class="invite-actions">
+          <button type="button" class="btn btn-primary" id="download-ics" disabled>Download .ics</button>
+          <a class="btn btn-ghost" id="google-link" href="#" target="_blank" rel="noopener" aria-disabled="true">Add to Google Calendar</a>
+          <a class="btn btn-ghost" id="email-link" href="#" aria-disabled="true">Email the circle</a>
+          <button type="button" class="btn btn-ghost" id="copy-summary" disabled>Copy summary</button>
+        </div>
+        <p class="form-status" id="invite-status" role="status"></p>
+        <p class="muted small">
+          The .ics is a standard recurring event with your members attached as attendees — it
+          imports into Google Calendar, Outlook, Apple Calendar and Fastmail. Open it once and the
+          rhythm takes care of itself.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <p><span class="brand-mark">🕸️</span> <strong>Kereitsu</strong> — networks of people who build things.</p>
+    <p class="muted small">
+      Everything on this page stays in your browser's local storage.
+      <button type="button" class="linklike" id="reset-all">Reset all data</button>
+    </p>
+  </div>
+</footer>
+
+<script src="assets/js/time.js"></script>
+<script src="assets/js/group.js"></script>
+<script src="assets/js/invite.js"></script>
+<script src="assets/js/app.js"></script>
 </body>
 </html>
