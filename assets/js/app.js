@@ -139,7 +139,7 @@
     if (event) event.preventDefault();
     var name = els.name.value.trim();
     if (!name) {
-      status(els.signupStatus, 'A name is needed — the circle has to know who you are.', true);
+      status(els.signupStatus, 'What should we call you?', true);
       els.name.focus();
       return;
     }
@@ -239,7 +239,7 @@
     var hours = (count * T.SLOT_MINUTES) / 60;
     els.mySummary.innerHTML = count
       ? '<strong>' + hours.toFixed(hours % 1 ? 1 : 0) + ' hours</strong> marked free across the week, in ' + viewerTz().replace(/_/g, ' ') + '.'
-      : 'Nothing marked yet. Drag across the grid, or use a quick fill above.';
+      : 'Nothing yet. Drag across the grid, or use a quick fill.';
   }
 
   function setSlot(slot, on) {
@@ -369,7 +369,7 @@
     if (!state.group.members.length) {
       var note = document.createElement('p');
       note.className = 'empty-note';
-      note.textContent = 'Nobody yet. Save your own profile above, then paste in the links your members send you.';
+      note.textContent = 'Nobody yet. Save your profile, then paste in the links people send you.';
       list.appendChild(note);
       return;
     }
@@ -508,22 +508,21 @@
     var withAvailability = members.filter(function (m) { return T.bitCount(G.memberBits(m)); });
 
     if (withAvailability.length < 1) {
-      els.windowsNote.textContent = 'Once at least one person has painted their week, the best meeting windows show up here.';
+      els.windowsNote.textContent = 'Paint a week and the best windows turn up here.';
       return;
     }
 
     var windows = G.rankWindows(withAvailability, state.anchor, state.group.duration, { limit: 6 });
     if (!windows.length) {
-      els.windowsNote.textContent = 'No window is long enough for a ' + state.group.duration +
-        '-minute session yet. Try a shorter session, or ask people to widen their availability.';
+      els.windowsNote.textContent = 'Nothing long enough for a ' + state.group.duration +
+        '-minute session yet. Try a shorter one, or ask for more hours.';
       return;
     }
 
     var who = withAvailability.length === 1
-      ? 'Only one person has marked availability so far, so these are just your own free hours.'
+      ? 'Only one week painted so far, so these are just your own free hours.'
       : 'Ranked by how many of the ' + withAvailability.length +
-        ' members can attend the whole ' + state.group.duration +
-        ' minutes, then by how civil the hour is for everyone.';
+        ' can make the whole session, then by how kind the hour is to everyone.';
     els.windowsNote.textContent = who;
 
     var tz = viewerTz();
@@ -617,7 +616,7 @@
       ['Where', state.group.location || '—'],
       ['Invitees', attendees.length
         ? attendees.map(function (m) { return (m.name || m.email) + ' <' + m.email + '>'; }).join(', ')
-        : 'No email addresses yet — add them and the invite carries attendees.']
+        : 'No emails yet. Add them and the invite carries attendees.']
     ];
 
     lines.forEach(function (pair) {
@@ -693,7 +692,7 @@
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    status(els.inviteStatus, 'Downloaded ' + I.filename(state.group) + '. Open it to add the whole series.');
+    status(els.inviteStatus, 'Downloaded ' + I.filename(state.group) + '. Open it to add every session.');
   }
 
   /* ───────────────────────── share ───────────────────────── */
@@ -778,7 +777,7 @@
         return;
       }
       copyText(els.shareLink.value).then(function () {
-        status(els.shareStatus, 'Copied. Send it to whoever is organising.');
+        status(els.shareStatus, "Copied. Send it to whoever's organising.");
       }, function () {
         els.shareLink.select();
         status(els.shareStatus, 'Press ⌘/Ctrl+C to copy.', true);
@@ -831,14 +830,14 @@
       var plan = currentPlan();
       if (!plan) return;
       copyText(inviteSummary(plan)).then(function () {
-        status(els.inviteStatus, 'Summary copied — paste it into the group chat.');
+        status(els.inviteStatus, 'Copied. Paste it into the group chat.');
       }, function () {
         status(els.inviteStatus, 'Copying failed; your browser blocked it.', true);
       });
     });
 
     els.resetAll.addEventListener('click', function () {
-      if (!confirm('Delete your profile, your circle and every availability on this device?')) return;
+      if (!confirm('Delete your profile and your circle from this device?')) return;
       try {
         localStorage.removeItem(G.STORAGE_KEY);
         localStorage.removeItem('kereitsu.me.v1');
