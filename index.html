@@ -227,12 +227,18 @@
     <p class="section-tag">05 — Overlap tool</p>
     <h2>Paint the hours you're free</h2>
     <p class="section-lede">
-      Drag to select. Drag again to clear. Shown in
+      Drag to select, drag again to clear. Switch to <em>at a push</em> for hours you
+      could manage but would rather not. Shown in
       <strong id="grid-tz-label">your local time</strong>.
     </p>
 
     <div class="panel">
       <div class="toolbar">
+        <div class="toolbar-group paint-modes" role="group" aria-label="What you're marking">
+          <span class="toolbar-label">Marking</span>
+          <button type="button" class="chip chip-paint" data-paint="free" aria-pressed="true">Free</button>
+          <button type="button" class="chip chip-paint chip-maybe" data-paint="maybe" aria-pressed="false">At a push</button>
+        </div>
         <div class="toolbar-group" role="group" aria-label="Quick fills">
           <button type="button" class="chip" data-fill="weekday-morning">Weekday mornings</button>
           <button type="button" class="chip" data-fill="weekday-lunch">Weekday middays</button>
@@ -319,12 +325,13 @@
       <h3>Where the week overlaps</h3>
       <p class="muted">
         Everyone's week on one timeline, in <strong id="overlap-tz-label">your timezone</strong>.
-        Darker means more people free. Click a block to pick it.
+        Darker means more people free, amber means someone's stretching. Click a block to pick it.
       </p>
       <div class="grid-scroll">
         <div class="grid grid-read" id="overlap-grid" aria-label="Group availability overlap"></div>
       </div>
       <div class="legend" id="legend"></div>
+      <div class="readout" id="readout"></div>
     </div>
 
     <div class="panel">

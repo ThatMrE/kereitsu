@@ -13,11 +13,13 @@
     myId: G.loadMyId(),
     anchor: T.anchorMonday(),
     myBits: T.emptyBitset(),
+    myTentative: T.emptyBitset(),
+    paintMode: 'free',
     prefs: { allHours: false, use12h: false }
   };
 
   var els = {};
-  var drag = { active: false, mode: 0 };
+  var drag = { active: false, value: 0 };
 
   function $(id) { return document.getElementById(id); }
 
@@ -40,7 +42,7 @@
   // Everyone else is still owed a reply, including people the organiser added
   // by hand while waiting for their link.
   function hasResponded(member) {
-    return T.bitCount(G.memberBits(member)) > 0;
+    return T.bitCount(G.memberBits(member)) + T.bitCount(G.memberTentativeBits(member)) > 0;
   }
 
   function waitingOn() {
@@ -151,6 +153,7 @@
     els.focus.value = m.focus;
     els.ask.value = m.ask;
     state.myBits = G.memberBits(m);
+    state.myTentative = G.memberTentativeBits(m);
     updateTzHint();
   }
 
@@ -184,7 +187,8 @@
       tz: els.tz.value || (existing && existing.tz) || T.localTimezone(),
       focus: els.focus.value,
       ask: els.ask.value,
-      slots: T.bitsToBase64(state.myBits)
+      slots: T.bitsToBase64(state.myBits),
+      tentative: T.bitsToBase64(state.myTentative)
     };
 
     if (existing) {
@@ -204,6 +208,7 @@
     var m = me();
     if (!m) return;
     m.slots = T.bitsToBase64(state.myBits);
+    m.tentative = T.bitsToBase64(state.myTentative);
     persist();
   }
 
@@ -245,9 +250,10 @@
         cell.type = 'button';
         cell.className = 'cell' + (isHour ? ' hour-start' : '');
         cell.dataset.slot = String(T.slotIndex(day, minute));
+        cell.dataset.when = T.DAY_NAMES[day] + ' ' + T.formatSlotTime(minute, state.prefs.use12h);
         if (interactive) {
           cell.setAttribute('aria-pressed', 'false');
-          cell.setAttribute('aria-label', T.DAY_NAMES[day] + ' ' + T.formatSlotTime(minute, state.prefs.use12h));
+          cell.setAttribute('aria-label', cell.dataset.when);
         }
         frag.appendChild(cell);
       }
@@ -255,23 +261,42 @@
     container.appendChild(frag);
   }
 
+  function hoursOf(bits) { return (T.bitCount(bits) * T.SLOT_MINUTES) / 60; }
+
+  function formatHours(h) { return h.toFixed(h % 1 ? 1 : 0); }
+
   function paintMyGrid() {
     var cells = els.myGrid.querySelectorAll('.cell');
     for (var i = 0; i < cells.length; i++) {
-      var slot = Number(cells[i].dataset.slot);
-      cells[i].setAttribute('aria-pressed', T.bitGet(state.myBits, slot) ? 'true' : 'false');
+      paintCell(cells[i], Number(cells[i].dataset.slot));
     }
-    var count = T.bitCount(state.myBits);
-    var hours = (count * T.SLOT_MINUTES) / 60;
-    els.mySummary.innerHTML = count
-      ? '<strong>' + hours.toFixed(hours % 1 ? 1 : 0) + ' hours</strong> marked free across the week, in ' + viewerTz().replace(/_/g, ' ') + '.'
-      : 'Nothing yet. Drag across the grid, or use a quick fill.';
+    var free = hoursOf(state.myBits);
+    var maybe = hoursOf(state.myTentative);
+    if (!free && !maybe) {
+      els.mySummary.textContent = 'Nothing yet. Drag across the grid, or use a quick fill.';
+      return;
+    }
+    var parts = ['<strong>' + formatHours(free) + ' hours</strong> free'];
+    if (maybe) parts.push('<strong>' + formatHours(maybe) + '</strong> at a push');
+    els.mySummary.innerHTML = parts.join(', ') + ', in ' + viewerTz().replace(/_/g, ' ') + '.';
   }
 
-  function setSlot(slot, on) {
-    if (slot < 0 || slot >= T.WEEK_SLOTS) return;
-    T.bitSet(state.myBits, slot, on);
+  // 0 can't, 1 at a push, 2 free.
+  function slotState(slot) {
+    if (T.bitGet(state.myBits, slot)) return 2;
+    if (T.bitGet(state.myTentative, slot)) return 1;
+    return 0;
   }
+
+  function setSlot(slot, value) {
+    if (slot < 0 || slot >= T.WEEK_SLOTS) return;
+    T.bitSet(state.myBits, slot, value === 2 ? 1 : 0);
+    T.bitSet(state.myTentative, slot, value === 1 ? 1 : 0);
+  }
+
+  var STATE_LABEL = { 0: "can't", 1: 'at a push', 2: 'free' };
+
+  function paintValue() { return state.paintMode === 'maybe' ? 1 : 2; }
 
   function cellFromPoint(x, y) {
     var el = document.elementFromPoint(x, y);
@@ -282,9 +307,17 @@
   function applyToCell(cell) {
     if (!cell) return;
     var slot = Number(cell.dataset.slot);
-    if (T.bitGet(state.myBits, slot) === drag.mode) return;
-    setSlot(slot, drag.mode);
-    cell.setAttribute('aria-pressed', drag.mode ? 'true' : 'false');
+    if (slotState(slot) === drag.value) return;
+    setSlot(slot, drag.value);
+    paintCell(cell, slot);
+  }
+
+  function paintCell(cell, slot) {
+    var value = slotState(slot);
+    cell.dataset.state = String(value);
+    cell.setAttribute('aria-pressed', value ? 'true' : 'false');
+    var base = cell.dataset.when || '';
+    cell.setAttribute('aria-label', base + ' — ' + STATE_LABEL[value]);
   }
 
   function bindGridDragging() {
@@ -293,7 +326,10 @@
       if (!cell || !els.myGrid.contains(cell)) return;
       e.preventDefault();
       drag.active = true;
-      drag.mode = T.bitGet(state.myBits, Number(cell.dataset.slot)) ? 0 : 1;
+      // Dragging from a cell that already holds the painting state erases,
+      // exactly as it did when there were only two states.
+      var slot = Number(cell.dataset.slot);
+      drag.value = slotState(slot) === paintValue() ? 0 : paintValue();
       applyToCell(cell);
     });
 
@@ -320,7 +356,7 @@
       if (!cell) return;
       e.preventDefault();
       var slot = Number(cell.dataset.slot);
-      setSlot(slot, T.bitGet(state.myBits, slot) ? 0 : 1);
+      setSlot(slot, slotState(slot) === paintValue() ? 0 : paintValue());
       syncMySlots();
       paintMyGrid();
       renderGroupViews();
@@ -337,12 +373,13 @@
   function applyFill(kind) {
     if (kind === 'clear') {
       state.myBits = T.emptyBitset();
+      state.myTentative = T.emptyBitset();
     } else {
       var spec = FILLS[kind];
       if (!spec) return;
       for (var i = 0; i < spec.days.length; i++) {
         for (var m = spec.from; m < spec.to; m += T.SLOT_MINUTES) {
-          T.bitSet(state.myBits, T.slotIndex(spec.days[i], m), 1);
+          setSlot(T.slotIndex(spec.days[i], m), paintValue());
         }
       }
     }
@@ -486,11 +523,17 @@
 
       var meta = document.createElement('div');
       meta.className = 'member-meta';
-      var hours = (T.bitCount(G.memberBits(m)) * T.SLOT_MINUTES) / 60;
+      var hours = hoursOf(G.memberBits(m));
+      var maybeHours = hoursOf(G.memberTentativeBits(m));
       var bits = [];
       if (m.focus) bits.push(m.focus);
       bits.push(m.tz.replace(/_/g, ' ') + ' (' + T.offsetLabel(m.tz) + ')');
-      bits.push(hours ? hours.toFixed(hours % 1 ? 1 : 0) + 'h free' : 'hasn\'t answered yet');
+      if (hours || maybeHours) {
+        bits.push(formatHours(hours) + 'h free' +
+          (maybeHours ? ' · ' + formatHours(maybeHours) + 'h at a push' : ''));
+      } else {
+        bits.push("hasn't answered yet");
+      }
       meta.textContent = bits.join(' · ');
       card.appendChild(meta);
 
@@ -537,6 +580,7 @@
     var total = members.length;
     var counts = G.overlapCounts(members, state.anchor);
     var projections = members.map(function (m) { return G.projectMember(m, state.anchor); });
+    state.projections = projections;
     var fwd = T.localToUtcMap(tz, state.anchor);
     var slotsNeeded = Math.max(1, Math.ceil(state.group.duration / T.SLOT_MINUTES));
 
@@ -552,33 +596,79 @@
       var cell = cells[i];
       var localSlot = Number(cell.dataset.slot);
       var utcSlot = fwd[localSlot];
-      var count = counts[utcSlot];
+      var freeCount = counts.free[utcSlot];
+      var maybeCount = counts.tentative[utcSlot];
       cell.dataset.utcSlot = String(utcSlot);
 
-      if (total && count) {
-        var ratio = count / total;
+      // A slot someone can only manage at a push counts for half, so it still
+      // reads as warmer than nothing without pretending to be a yes.
+      if (total && (freeCount || maybeCount)) {
+        var ratio = (freeCount + maybeCount * 0.5) / total;
         cell.style.background = 'rgba(56, 189, 248, ' + (0.14 + ratio * 0.78).toFixed(3) + ')';
+        if (maybeCount) cell.classList.add('has-maybe');
       }
       if (chosenSlots[utcSlot]) cell.classList.add('selected-window');
 
-      var free = [];
-      for (var p = 0; p < members.length; p++) {
-        if (projections[p][utcSlot]) free.push(members[p].name || 'Unnamed');
-      }
-
-      var day = T.slotDay(localSlot);
-      var label = T.DAY_NAMES[day] + ' ' + T.formatSlotTime(T.slotMinuteOfDay(localSlot), state.prefs.use12h) +
-        ' — ' + count + ' of ' + total + ' free' + (free.length ? ': ' + free.join(', ') : '');
-      cell.title = label;
-      cell.setAttribute('aria-label', label);
+      cell.setAttribute('aria-label', cell.dataset.when + ' — ' + freeCount + ' free, ' +
+        maybeCount + ' at a push, of ' + total);
       cell.addEventListener('click', onOverlapCellClick);
+      cell.addEventListener('mouseenter', onOverlapCellPeek);
+      cell.addEventListener('focus', onOverlapCellPeek);
     }
 
     renderLegend(total);
+    renderReadout(state.group.chosenUtcSlot);
+  }
+
+  // When2meet hides this in a tooltip, which is invisible on a phone. A named
+  // readout under the grid says exactly who is behind the slot you're pointing
+  // at, in all three states.
+  function onOverlapCellPeek(e) {
+    renderReadout(Number(e.currentTarget.dataset.utcSlot));
+  }
+
+  function renderReadout(utcSlot) {
+    var panel = els.readout;
+    panel.textContent = '';
+    var members = state.group.members;
+    if (utcSlot == null || !members.length || !state.projections) {
+      panel.textContent = 'Point at a block to see who is behind it.';
+      return;
+    }
+
+    var buckets = { 2: [], 1: [], 0: [] };
+    for (var i = 0; i < members.length; i++) {
+      buckets[state.projections[i][utcSlot]].push(members[i]);
+    }
+
+    var inv = T.utcToLocalMap(viewerTz(), state.anchor);
+    var localSlot = inv[utcSlot];
+    var heading = document.createElement('div');
+    heading.className = 'readout-when';
+    heading.textContent = T.DAY_NAMES[T.slotDay(localSlot)] + ' ' +
+      T.formatSlotTime(T.slotMinuteOfDay(localSlot), state.prefs.use12h) +
+      ' · ' + viewerTz().replace(/_/g, ' ');
+    panel.appendChild(heading);
+
+    [['2', 'Free'], ['1', 'At a push'], ['0', "Can't"]].forEach(function (pair) {
+      var group = buckets[pair[0]];
+      if (!group.length) return;
+      var row = document.createElement('div');
+      row.className = 'readout-row state-' + pair[0];
+      var key = document.createElement('span');
+      key.className = 'readout-key';
+      key.textContent = pair[1];
+      var val = document.createElement('span');
+      val.textContent = group.map(function (m) { return nameOrYou(m); }).join(', ');
+      row.appendChild(key);
+      row.appendChild(val);
+      panel.appendChild(row);
+    });
   }
 
   function onOverlapCellClick(e) {
     var utcSlot = Number(e.currentTarget.dataset.utcSlot);
+    renderReadout(utcSlot);
     state.group.chosenUtcSlot = utcSlot;
     persist();
     renderGroupViews();
@@ -605,6 +695,14 @@
       item.appendChild(document.createTextNode(n + ' of ' + total + ' free'));
       els.legend.appendChild(item);
     });
+    var maybe = document.createElement('span');
+    maybe.className = 'legend-item';
+    var maybeSwatch = document.createElement('span');
+    maybeSwatch.className = 'legend-swatch has-maybe';
+    maybeSwatch.style.background = 'rgba(56, 189, 248, 0.4)';
+    maybe.appendChild(maybeSwatch);
+    maybe.appendChild(document.createTextNode('dashed: someone is stretching'));
+    els.legend.appendChild(maybe);
   }
 
   /* ───────────────────────── windows ───────────────────────── */
@@ -613,7 +711,7 @@
     var container = els.windows;
     container.textContent = '';
     var members = state.group.members;
-    var withAvailability = members.filter(function (m) { return T.bitCount(G.memberBits(m)); });
+    var withAvailability = members.filter(hasResponded);
 
     if (withAvailability.length < 1) {
       els.windowsNote.textContent = 'Paint a week and the best windows turn up here.';
@@ -630,8 +728,8 @@
     var who = withAvailability.length === 1
       ? 'Only one week painted so far, so these are just your own free hours.'
       : 'Ranked by how many of the ' + withAvailability.length +
-        ' can make the whole session, then by how kind the hour is to everyone.';
-    var pendingVoices = waitingOn().filter(function (m) { return T.bitCount(G.memberBits(m)) === 0; });
+        ' are genuinely free for the whole session — someone stretching only breaks a tie.';
+    var pendingVoices = waitingOn();
     if (pendingVoices.length) {
       who += ' ' + listNames(pendingVoices) +
         (pendingVoices.length === 1 ? " hasn't answered yet, so isn't counted." : " haven't answered yet, so aren't counted.");
@@ -664,11 +762,19 @@
         main.appendChild(sub);
       }
 
+      if (w.stretching.length) {
+        var push = document.createElement('div');
+        push.className = 'window-sub window-push';
+        push.textContent = 'At a push for ' +
+          listNames(withAvailability.filter(function (m) { return w.stretching.indexOf(m.id) > -1; }), true);
+        main.appendChild(push);
+      }
+
       var missing = withAvailability.filter(function (m) { return w.attendees.indexOf(m.id) === -1; });
       if (missing.length) {
         var miss = document.createElement('div');
         miss.className = 'window-sub window-missing';
-        miss.textContent = 'Misses ' + missing.map(function (m) { return m.name || 'a member'; }).join(', ');
+        miss.textContent = 'Misses ' + listNames(missing, true);
         main.appendChild(miss);
       }
 
@@ -676,7 +782,8 @@
 
       var score = document.createElement('div');
       score.className = 'window-score';
-      score.innerHTML = '<strong>' + w.count + '/' + withAvailability.length + '</strong>can make it';
+      score.innerHTML = '<strong>' + w.freeCount + '/' + withAvailability.length + '</strong>' +
+        (w.stretching.length ? '+' + w.stretching.length + ' at a push' : 'free');
       btn.appendChild(score);
 
       btn.addEventListener('click', function () {
@@ -854,6 +961,7 @@
     state.myId = parsed.id;
     G.saveMyId(parsed.id);
     state.myBits = G.memberBits(parsed);
+    state.myTentative = G.memberTentativeBits(parsed);
     persist();
     fillFormFromMe();
     renderAll();
@@ -991,6 +1099,14 @@
     renderGroupViews();
   }
 
+  function updatePaintButtons() {
+    document.querySelectorAll('[data-paint]').forEach(function (btn) {
+      var on = btn.dataset.paint === state.paintMode;
+      btn.classList.toggle('is-active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
   function syncGroupInputs() {
     els.gName.value = state.group.name;
     els.gDuration.value = String(state.group.duration);
@@ -1081,6 +1197,13 @@
       });
     });
 
+    document.querySelectorAll('[data-paint]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        state.paintMode = btn.dataset.paint;
+        updatePaintButtons();
+      });
+    });
+
     els.mailNext.addEventListener('click', function () { sendNextLink(false); });
     els.chaseWaiting.addEventListener('click', function () { sendNextLink(true); });
     els.addInvitee.addEventListener('click', addInvitee);
@@ -1127,7 +1250,7 @@
       addInvitee: $('add-invitee'), inviteeStatus: $('invitee-status'),
       responseSummary: $('response-summary'), chaseWaiting: $('chase-waiting'),
       overlapGrid: $('overlap-grid'), overlapTzLabel: $('overlap-tz-label'), legend: $('legend'),
-      windows: $('windows'), windowsNote: $('windows-note'),
+      windows: $('windows'), windowsNote: $('windows-note'), readout: $('readout'),
       gDuration: $('g-duration'), gStart: $('g-start'), gLocation: $('g-location'),
       invitePreview: $('invite-preview'), downloadIcs: $('download-ics'),
       googleLink: $('google-link'), emailLink: $('email-link'), copySummary: $('copy-summary'),
@@ -1135,6 +1258,7 @@
     };
 
     loadPrefs();
+    updatePaintButtons();
     populateTimezones();
     fillFormFromMe();
     syncGroupInputs();
