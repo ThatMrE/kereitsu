@@ -20,11 +20,15 @@
       tz: fields.tz || T.localTimezone(),
       focus: (fields.focus || '').trim(),
       ask: (fields.ask || '').trim(),
-      slots: fields.slots || ''
+      slots: fields.slots || '',
+      tentative: fields.tentative || ''
     };
   }
 
+  // Two separate sets, never merged into one number: the hours someone is
+  // free, and the hours they could manage at a push.
   function memberBits(member) { return T.bitsFromBase64(member.slots); }
+  function memberTentativeBits(member) { return T.bitsFromBase64(member.tentative); }
 
   /* ---------- persistence ---------- */
 
@@ -84,7 +88,8 @@
       z: member.tz,
       f: member.focus,
       a: member.ask,
-      s: member.slots
+      s: member.slots,
+      t: member.tentative
     };
     var json = JSON.stringify(payload);
     var b64 = btoa(unescape(encodeURIComponent(json)));
@@ -108,7 +113,11 @@
       var json = decodeURIComponent(escape(atob(b64)));
       var p = JSON.parse(json);
       if (!p || typeof p !== 'object') return null;
-      return makeMember({ name: p.n, email: p.e, tz: p.z, focus: p.f, ask: p.a, slots: p.s });
+      // Links made before tentative existed simply have no `t`.
+      return makeMember({
+        name: p.n, email: p.e, tz: p.z, focus: p.f, ask: p.a,
+        slots: p.s, tentative: p.t
+      });
     } catch (e) {
       return null;
     }
@@ -131,26 +140,37 @@
 
   /* ---------- overlap ---------- */
 
-  // Counts, per UTC slot of the anchor week, how many members are free.
+  // Per UTC slot of the anchor week: how many are free, and how many could
+  // manage it at a push. Kept as two arrays rather than one blended score, so
+  // nothing downstream has to guess which kind of yes it is looking at.
   function overlapCounts(members, anchor) {
-    var counts = new Uint8Array(T.WEEK_SLOTS);
+    var free = new Uint8Array(T.WEEK_SLOTS);
+    var tentative = new Uint8Array(T.WEEK_SLOTS);
     for (var i = 0; i < members.length; i++) {
-      var bits = memberBits(members[i]);
+      var freeBits = memberBits(members[i]);
+      var maybeBits = memberTentativeBits(members[i]);
       var map = T.localToUtcMap(members[i].tz, anchor);
       for (var s = 0; s < T.WEEK_SLOTS; s++) {
-        if (T.bitGet(bits, s)) counts[map[s]] += 1;
+        if (T.bitGet(freeBits, s)) free[map[s]] += 1;
+        else if (T.bitGet(maybeBits, s)) tentative[map[s]] += 1;
       }
     }
-    return counts;
+    return { free: free, tentative: tentative };
   }
 
   // Per-member availability projected onto UTC slots — used to say exactly who
   // can and cannot make a given window.
+  // Each UTC slot gets 0 (can't), 1 (at a push) or 2 (free), so a window can
+  // be scored on the weakest state it contains.
   function projectMember(member, anchor) {
-    var bits = memberBits(member);
+    var freeBits = memberBits(member);
+    var maybeBits = memberTentativeBits(member);
     var map = T.localToUtcMap(member.tz, anchor);
     var out = new Uint8Array(T.WEEK_SLOTS);
-    for (var s = 0; s < T.WEEK_SLOTS; s++) if (T.bitGet(bits, s)) out[map[s]] = 1;
+    for (var s = 0; s < T.WEEK_SLOTS; s++) {
+      if (T.bitGet(freeBits, s)) out[map[s]] = 2;
+      else if (T.bitGet(maybeBits, s)) out[map[s]] = 1;
+    }
     return out;
   }
 
@@ -178,24 +198,35 @@
     var windows = [];
 
     for (var start = 0; start < T.WEEK_SLOTS; start++) {
-      var attendees = [];
+      var free = [];
+      var stretching = [];
       for (var i = 0; i < members.length; i++) {
-        var ok = true;
+        // A window is only as good as its worst slot for that person.
+        var weakest = 2;
         for (var k = 0; k < slotsNeeded; k++) {
-          if (!projections[i][(start + k) % T.WEEK_SLOTS]) { ok = false; break; }
+          var state = projections[i][(start + k) % T.WEEK_SLOTS];
+          if (state < weakest) weakest = state;
+          if (!weakest) break;
         }
-        if (ok) attendees.push(members[i].id);
+        if (weakest === 2) free.push(members[i].id);
+        else if (weakest === 1) stretching.push(members[i].id);
       }
-      if (!attendees.length) continue;
+      if (!free.length && !stretching.length) continue;
       windows.push({
         utcSlot: start,
-        attendees: attendees,
-        count: attendees.length,
+        attendees: free.concat(stretching),
+        free: free,
+        stretching: stretching,
+        count: free.length + stretching.length,
+        freeCount: free.length,
         civility: civilityScore(start, slotsNeeded, members, anchor)
       });
     }
 
+    // Everyone genuinely free beats everyone available-at-a-push, so a stretch
+    // breaks ties rather than leading the ranking.
     windows.sort(function (a, b) {
+      if (b.freeCount !== a.freeCount) return b.freeCount - a.freeCount;
       if (b.count !== a.count) return b.count - a.count;
       if (b.civility !== a.civility) return b.civility - a.civility;
       return a.utcSlot - b.utcSlot;
@@ -209,7 +240,8 @@
       for (var j = 0; j < kept.length; j++) {
         var diff = Math.abs(kept[j].utcSlot - win.utcSlot);
         diff = Math.min(diff, T.WEEK_SLOTS - diff);
-        if (diff < slotsNeeded && kept[j].count === win.count) { overlapping = true; break; }
+        if (diff < slotsNeeded && kept[j].count === win.count &&
+            kept[j].freeCount === win.freeCount) { overlapping = true; break; }
       }
       if (!overlapping) kept.push(win);
       if (kept.length >= (options.limit || 6)) break;
@@ -236,6 +268,7 @@
     STORAGE_KEY: STORAGE_KEY,
     makeMember: makeMember,
     memberBits: memberBits,
+    memberTentativeBits: memberTentativeBits,
     defaultGroup: defaultGroup,
     loadGroup: loadGroup,
     saveGroup: saveGroup,
