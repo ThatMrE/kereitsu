@@ -90,8 +90,9 @@ The complaints converge, and they're more useful than the feature lists:
 3. **No calendar read.** Structurally out of reach — it needs OAuth and a
    server. Worth naming as a deliberate non-goal rather than a gap.
 4. **Days-of-week only.** No one-off, specific-date mode.
-5. **The anchor week is always "the upcoming Monday."** Fine day to day; wrong
-   across a daylight-saving boundary.
+5. ~~**The anchor week is always "the upcoming Monday."**~~ Fixed in phase 2:
+   it follows the chosen start date, and the invite no longer drifts at a
+   daylight-saving change.
 
 ## Roadmap
 
@@ -113,12 +114,29 @@ pointing at.
 Ranking changes to sort on fully-free count first, and only then on
 free-plus-tentative, so a stretch is a tie-breaker rather than a headline.
 
-### Phase 2 — the week you're actually scheduling
+### Phase 2 — the week you're actually scheduling *(done)*
 
-Pin the anchor week to the chosen start date rather than always the upcoming
-Monday, so a circle formed in February and starting in April converts against
-April's offsets. Show each member's local time for the chosen slot on the
-invite preview.
+The anchor week now follows the chosen start date rather than always being the
+upcoming Monday, so a circle formed in February and starting in April converts
+against April's offsets. Moving the start date re-reads every offset, so the
+chosen slot is remapped to hold the wall-clock time the organiser picked rather
+than the UTC index. The invite preview names each member's local time for the
+chosen slot, and says which zone the series is pinned to.
+
+Building it turned up three things the roadmap hadn't accounted for:
+
+- **The invite drifted an hour at every DST change.** `DTSTART` was written in
+  UTC, so each occurrence kept the same UTC instant: a 14:00 Berlin meeting
+  became 13:00 from late October. It now writes `DTSTART;TZID=` with a
+  generated `VTIMEZONE`, so the series holds its local hour. Verified against
+  Berlin, New York, Sydney and a fixed-offset zone.
+- **`offsetAt` was contaminated by milliseconds.** It subtracted a
+  second-resolution wall time from a millisecond timestamp, so two instants in
+  the same offset almost never compared equal. Every existing caller rounded,
+  which hid it until offsets had to be compared directly.
+- **`anchorMonday` jumped a week when handed a Monday.** Harmless while the
+  argument was always "now"; with the start date driving it, a Monday start
+  lost a week.
 
 ### Phase 3 — a one-off mode
 

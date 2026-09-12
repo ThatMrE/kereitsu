@@ -12,6 +12,7 @@
     group: G.loadGroup(),
     myId: G.loadMyId(),
     anchor: T.anchorMonday(),
+    projections: null,
     myBits: T.emptyBitset(),
     myTentative: T.emptyBitset(),
     paintMode: 'free',
@@ -37,6 +38,30 @@
   }
 
   function persist() { G.saveGroup(state.group); }
+
+  // Availability is compared on one anchor week. Pinning it to the week the
+  // circle actually starts means offsets are read at that time of year — a
+  // circle formed in February and starting in April converts against April.
+  function computeAnchor() {
+    var from = I.parseStartDate(state.group.startDate);
+    return T.anchorMonday(from == null ? Date.now() : from);
+  }
+
+  // Moving the anchor re-reads every offset, so the same UTC slot can mean a
+  // different local hour. Hold the wall-clock time the organiser picked and
+  // let the UTC index move instead.
+  function reanchor() {
+    var previous = state.anchor;
+    var next = computeAnchor();
+    if (next === previous) return false;
+    if (state.group.chosenUtcSlot != null) {
+      var tz = viewerTz();
+      var localSlot = T.utcToLocalMap(tz, previous)[state.group.chosenUtcSlot];
+      state.group.chosenUtcSlot = T.localToUtcMap(tz, next)[localSlot];
+    }
+    state.anchor = next;
+    return true;
+  }
 
   // Someone counts as having answered once they've marked at least one hour.
   // Everyone else is still owed a reply, including people the organiser added
@@ -801,7 +826,7 @@
 
   function currentPlan() {
     if (state.group.chosenUtcSlot == null) return null;
-    return I.buildPlan(state.group, state.anchor);
+    return I.buildPlan(state.group, state.anchor, viewerTz());
   }
 
   function renderInvite() {
@@ -828,11 +853,25 @@
     });
     var attendees = state.group.members.filter(function (m) { return m.email; });
 
+    var zones = [];
+    var seenZone = {};
+    state.group.members.forEach(function (m) {
+      if (!m.tz || seenZone[m.tz]) return;
+      seenZone[m.tz] = true;
+      var who = state.group.members.filter(function (o) { return o.tz === m.tz; })
+        .map(nameOrYou).join(', ');
+      zones.push(who + ': ' +
+        G.localWindowLabel(state.group.chosenUtcSlot, state.group.duration, m.tz,
+          state.anchor, state.prefs.use12h));
+    });
+
     var lines = [
       ['Event', state.group.name || 'Mastermind circle'],
       ['Repeats', plan.label],
       ['First one', first + ' (' + tz.replace(/_/g, ' ') + ')'],
       ['Length', state.group.duration + ' minutes'],
+      ['Pinned to', tz.replace(/_/g, ' ') + ' — it keeps this hour when the clocks change'],
+      ['Everyone', zones.length ? zones.join(' · ') : '—'],
       ['Where', state.group.location || '—'],
       ['Invitees', attendees.length
         ? attendees.map(function (m) { return (m.name || m.email) + ' <' + m.email + '>'; }).join(', ')
@@ -1180,8 +1219,12 @@
     });
     els.gStart.addEventListener('change', function () {
       state.group.startDate = els.gStart.value;
+      var moved = reanchor();
       persist();
-      renderInvite();
+      // A new anchor re-reads every offset, so the heatmap and the rankings
+      // have to be rebuilt, not just the invite.
+      if (moved) renderGroupViews();
+      else renderInvite();
     });
     els.gLocation.addEventListener('input', function () {
       state.group.location = els.gLocation.value;
@@ -1258,6 +1301,7 @@
     };
 
     loadPrefs();
+    state.anchor = computeAnchor();
     updatePaintButtons();
     populateTimezones();
     fillFormFromMe();
