@@ -34,13 +34,18 @@
   }
 
   // Offset of `tz` from UTC, in milliseconds, at the instant `ts`.
+  //
+  // The formatter only resolves to the second, so `ts` is floored to the
+  // second before subtracting: otherwise any milliseconds on `ts` leak into
+  // the result and two instants in the same offset never compare equal.
   function offsetAt(ts, tz) {
-    var parts = formatterFor(tz).formatToParts(new Date(ts));
+    var whole = Math.floor(ts / 1000) * 1000;
+    var parts = formatterFor(tz).formatToParts(new Date(whole));
     var f = {};
     for (var i = 0; i < parts.length; i++) f[parts[i].type] = parts[i].value;
     var hour = Number(f.hour) === 24 ? 0 : Number(f.hour);
     var asUTC = Date.UTC(Number(f.year), Number(f.month) - 1, Number(f.day), hour, Number(f.minute), Number(f.second));
-    return asUTC - ts;
+    return asUTC - whole;
   }
 
   // The UTC instant at which the wall clock in `tz` reads the given date/time.
@@ -88,6 +93,43 @@
     return 'UTC' + sign + pad2(Math.floor(mins / 60)) + ':' + pad2(mins % 60);
   }
 
+  // The instants where a zone's UTC offset changes, between two timestamps.
+  // Probed a day at a time — no real zone shifts twice within one day — then
+  // narrowed to the minute.
+  function offsetTransitions(tz, fromTs, toTs) {
+    var DAY = 86400000;
+    var out = [];
+    var prev = offsetAt(fromTs, tz);
+    for (var t = fromTs; t < toTs; t += DAY) {
+      var next = Math.min(t + DAY, toTs);
+      var cur = offsetAt(next, tz);
+      if (cur === prev) continue;
+      var lo = t;
+      var hi = next;
+      while (hi - lo > 1000) {
+        var mid = lo + Math.floor((hi - lo) / 2);
+        if (offsetAt(mid, tz) === prev) lo = mid;
+        else hi = mid;
+      }
+      // Zones always change on a minute boundary, so snap to it.
+      out.push({ at: Math.floor(hi / 60000) * 60000, from: prev, to: cur });
+      prev = cur;
+    }
+    return out;
+  }
+
+  // The wall-clock parts a zone shows at an instant.
+  function wallPartsAt(ts, tz) {
+    var parts = formatterFor(tz).formatToParts(new Date(ts));
+    var f = {};
+    for (var i = 0; i < parts.length; i++) f[parts[i].type] = parts[i].value;
+    return {
+      year: Number(f.year), month: Number(f.month), day: Number(f.day),
+      hour: Number(f.hour) === 24 ? 0 : Number(f.hour),
+      minute: Number(f.minute), second: Number(f.second)
+    };
+  }
+
   /* ---------- the anchor week ---------- */
 
   // Monday 00:00 UTC of the week that starts on or after `from`. Everyone's
@@ -96,7 +138,9 @@
     var d = new Date(from == null ? Date.now() : from);
     var utcMidnight = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
     var dow = (new Date(utcMidnight).getUTCDay() + 6) % 7; // 0 = Monday
-    return utcMidnight + (7 - dow) * 86400000;
+    // The Monday on or after the date — a date that is already Monday anchors
+    // to itself rather than jumping a week.
+    return utcMidnight + ((7 - dow) % 7) * 86400000;
   }
 
   /* ---------- slot math ---------- */
@@ -205,6 +249,8 @@
     DAY_SHORT: DAY_SHORT,
     ICS_DAYS: ICS_DAYS,
     offsetAt: offsetAt,
+    offsetTransitions: offsetTransitions,
+    wallPartsAt: wallPartsAt,
     wallTimeToInstant: wallTimeToInstant,
     localTimezone: localTimezone,
     timezoneList: timezoneList,

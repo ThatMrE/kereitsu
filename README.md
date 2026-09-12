@@ -63,9 +63,15 @@ Meeting windows are ranked by how many members can attend the *whole* session,
 then by how civil the local hour is for everyone (08:00–20:00 scores best),
 then by how early in the week they fall.
 
-Because the anchor is a single week, a group that spans a daylight-saving
-change may see a chosen slot shift by an hour relative to some members' local
-time. The `.ics` pins the event in UTC.
+The anchor week follows the circle's chosen start date, so offsets are read at
+the time of year the circle actually begins. Changing that date re-reads every
+offset and remaps the chosen slot, holding the wall-clock time rather than the
+UTC index.
+
+The `.ics` pins the series to the organiser's timezone with `DTSTART;TZID=` and
+a generated `VTIMEZONE`, so a meeting set for 14:00 stays at 14:00 when the
+clocks change — rather than sliding an hour, which is what a UTC `DTSTART`
+would do.
 
 ## Layout
 

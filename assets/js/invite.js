@@ -12,6 +12,55 @@
       pad2(d.getUTCHours()) + pad2(d.getUTCMinutes()) + pad2(d.getUTCSeconds()) + 'Z';
   }
 
+  // Local wall-clock stamp for a zone: 20260915T140000, no trailing Z.
+  function stampLocal(ts, tz) {
+    var p = T.wallPartsAt(ts, tz);
+    return p.year + pad2(p.month) + pad2(p.day) + 'T' +
+      pad2(p.hour) + pad2(p.minute) + pad2(p.second);
+  }
+
+  function offsetStamp(ms) {
+    var mins = Math.round(ms / 60000);
+    var sign = mins < 0 ? '-' : '+';
+    mins = Math.abs(mins);
+    return sign + pad2(Math.floor(mins / 60)) + pad2(mins % 60);
+  }
+
+  // A VTIMEZONE so the series holds its local hour across daylight saving.
+  // With DTSTART in UTC every occurrence keeps the same UTC instant, which
+  // means the meeting silently moves an hour when the clocks change.
+  function buildVTimezone(tz, fromTs, years) {
+    var span = (years || 5) * 365.25 * 86400000;
+    var transitions = T.offsetTransitions(tz, fromTs - 86400000, fromTs + span);
+    var lines = ['BEGIN:VTIMEZONE', 'TZID:' + tz];
+
+    // Nothing describes the offset in effect before the first transition
+    // unless it is stated, and the event usually starts before it. Without
+    // this leading observance a client has no rule covering DTSTART.
+    var initial = T.offsetAt(fromTs, tz);
+    var initialKind = transitions.length && transitions[0].to < transitions[0].from
+      ? 'DAYLIGHT' : 'STANDARD';
+    lines.push('BEGIN:' + initialKind, 'DTSTART:19700101T000000',
+      'TZOFFSETFROM:' + offsetStamp(initial), 'TZOFFSETTO:' + offsetStamp(initial),
+      'END:' + initialKind);
+
+    if (transitions.length) {
+      transitions.forEach(function (t) {
+        // An observance's DTSTART is the wall time under the OUTGOING offset.
+        var wall = new Date(t.at + t.from);
+        var kind = t.to > t.from ? 'DAYLIGHT' : 'STANDARD';
+        lines.push('BEGIN:' + kind,
+          'DTSTART:' + wall.getUTCFullYear() + pad2(wall.getUTCMonth() + 1) + pad2(wall.getUTCDate()) +
+            'T' + pad2(wall.getUTCHours()) + pad2(wall.getUTCMinutes()) + pad2(wall.getUTCSeconds()),
+          'TZOFFSETFROM:' + offsetStamp(t.from),
+          'TZOFFSETTO:' + offsetStamp(t.to),
+          'END:' + kind);
+      });
+    }
+    lines.push('END:VTIMEZONE');
+    return lines;
+  }
+
   // First instant on or after `from` whose UTC weekday and time-of-day match
   // the chosen slot of the anchor week.
   function firstOccurrence(utcSlot, anchor, from) {
@@ -128,8 +177,10 @@
     return lines.join('\n');
   }
 
-  // plan: { start: ts, end: ts, rrule, organizer }
-  function buildPlan(group, anchor) {
+  // plan: { start, end, rrule, label, tz }
+  // `tz` is the zone the series is pinned to — the one whose wall clock the
+  // meeting keeps when the clocks change.
+  function buildPlan(group, anchor, tz) {
     if (group.chosenUtcSlot == null) return null;
     var from = parseStartDate(group.startDate);
     var start = firstOccurrence(group.chosenUtcSlot, anchor, from == null ? Date.now() : from);
@@ -138,7 +189,8 @@
       start: start,
       end: end,
       rrule: rruleFor(group.cadence, start),
-      label: cadenceLabel(group.cadence, start)
+      label: cadenceLabel(group.cadence, start),
+      tz: tz || 'UTC'
     };
   }
 
@@ -152,7 +204,7 @@
   function eventSignature(group, plan) {
     var emails = group.members.map(function (m) { return m.email; })
       .filter(Boolean).map(function (e) { return e.toLowerCase(); }).sort().join(',');
-    return [plan.start, plan.end, plan.rrule, group.name, group.location, emails].join('|');
+    return [plan.start, plan.end, plan.rrule, plan.tz, group.name, group.location, emails].join('|');
   }
 
   // Calendars match events on UID: reuse it and raise SEQUENCE and the same
@@ -169,25 +221,29 @@
   function buildICS(group, plan, organizer) {
     var uid = group.uid || newUid();
     var stamp = stampUTC(Date.now());
+    var tz = plan.tz || 'UTC';
     var lines = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
       'PRODID:-//Kereitsu//Mastermind Scheduler//EN',
       'CALSCALE:GREGORIAN',
-      'METHOD:REQUEST',
+      'METHOD:REQUEST'
+    ];
+    lines = lines.concat(buildVTimezone(tz, plan.start, 5));
+    lines = lines.concat([
       'BEGIN:VEVENT',
       'UID:' + uid,
       'DTSTAMP:' + stamp,
       'LAST-MODIFIED:' + stamp,
-      'DTSTART:' + stampUTC(plan.start),
-      'DTEND:' + stampUTC(plan.end),
+      'DTSTART;TZID=' + tz + ':' + stampLocal(plan.start, tz),
+      'DTEND;TZID=' + tz + ':' + stampLocal(plan.end, tz),
       'RRULE:' + plan.rrule,
       'SUMMARY:' + escapeText(group.name),
       'DESCRIPTION:' + escapeText(buildDescription(group, plan)),
       'STATUS:CONFIRMED',
       'TRANSP:OPAQUE',
       'SEQUENCE:' + (group.sequence || 0)
-    ];
+    ]);
     if (group.location) lines.push('LOCATION:' + escapeText(group.location));
     if (organizer && organizer.email) {
       lines.push('ORGANIZER;CN=' + escapeText(organizer.name || organizer.email) + ':mailto:' + organizer.email);
@@ -226,6 +282,8 @@
 
   global.KZInvite = {
     stampUTC: stampUTC,
+    stampLocal: stampLocal,
+    buildVTimezone: buildVTimezone,
     newUid: newUid,
     eventSignature: eventSignature,
     nextIssue: nextIssue,
